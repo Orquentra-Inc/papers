@@ -1,0 +1,1127 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CodeBuddy, Evidence First</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Companion to the CodeBuddy 2.16 preprint: how a local context and memory layer for AI coding agents was planned, built and measured, with every gap stated as a research target.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Schibsted+Grotesk:wght@500;700;800&display=swap">
+<style>
+/* Layout: a single reading column (paper order) on a cool instrument-grey ground; figures break
+   out to a wider measure; one orange accent marks CodeBuddy everywhere, every other arm stays muted. */
+:root {
+  --bg: #F4F5F7;
+  --surface: #FFFFFF;
+  --ink: #12151C;
+  --ink-2: #444B59;
+  --muted: #6A7180;
+  --rule: #DCE0E6;
+  --cb: #E8743B;          /* CodeBuddy orange: marks and large type */
+  --cb-ink: #A9491A;      /* orange for small text on light ground */
+  --cb-soft: #F3BE9F;     /* earlier CodeBuddy versions/profiles */
+  --cb-wash: #FCEFE7;
+  --hr: #5577AA;          /* Headroom: muted blue */
+  --stock: #B7BEC9;       /* stock / no tool: grey baseline */
+  --good: #2F7D4F;
+  --warn: #9A6A12;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --measure: 44rem;
+  --wide: 64rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1015; --surface: #151920; --ink: #E8EBF0; --ink-2: #B4BBC7; --muted: #8B93A1; --rule: #262C36;
+    --cb: #E8743B; --cb-ink: #F29A6B; --cb-soft: #7E4529; --cb-wash: #24180F;
+    --hr: #7B98C9; --stock: #4A5260; --good: #6CC291; --warn: #E0B25A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1015; --surface: #151920; --ink: #E8EBF0; --ink-2: #B4BBC7; --muted: #8B93A1; --rule: #262C36;
+  --cb: #E8743B; --cb-ink: #F29A6B; --cb-soft: #7E4529; --cb-wash: #24180F;
+  --hr: #7B98C9; --stock: #4A5260; --good: #6CC291; --warn: #E0B25A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 1rem/1.65 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap {
+  max-width: calc(var(--wide) + 2 * 16px); margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.col { max-width: var(--measure); }
+a { color: var(--cb-ink); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--cb); outline-offset: 3px; border-radius: 2px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; letter-spacing: -0.01em; margin: 0; }
+h2 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem); line-height: 1.15; font-weight: 800; }
+h3 { font-size: 1.15rem; line-height: 1.3; font-weight: 700; }
+p { margin: 0; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font: 500 0.75rem/1.2 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.cb { color: var(--cb-ink); font-weight: 600; }
+.stack { display: flex; flex-direction: column; gap: 1rem; }
+.stack-lg { display: flex; flex-direction: column; gap: 2rem; }
+
+/* ---------- masthead + hero */
+.masthead { border-bottom: 1px solid var(--rule); }
+.masthead .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: 0.9rem; }
+.hero .wrap { padding-block: 3.5rem 2.5rem; display: grid; gap: 2.25rem; }
+.hero h1 { font-size: clamp(2rem, 1.3rem + 3.2vw, 3.6rem); line-height: 1.04; font-weight: 800; max-width: 22ch; letter-spacing: -0.025em; }
+.hero h1 em { font-style: normal; color: var(--cb); }
+.hero .sub { font-size: clamp(1.05rem, 1rem + 0.3vw, 1.25rem); color: var(--ink-2); max-width: 40rem; }
+.byline { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; color: var(--muted); font-size: 0.9rem; }
+.byline strong { color: var(--ink); font-weight: 600; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.kpi { padding: 1.25rem 1.25rem 1.1rem 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.kpi + .kpi { padding-left: 1.25rem; border-left: 1px solid var(--rule); }
+.kpi .v { font: 800 clamp(2.4rem, 1.8rem + 2.4vw, 3.6rem)/1 var(--font-display); color: var(--cb); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.kpi .l { font-weight: 600; font-size: 0.95rem; }
+.kpi .s { font: 400 0.78rem/1.4 var(--font-mono); color: var(--muted); }
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { padding-left: 0; border-left: 0; }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--rule); }
+}
+.kpi-note { font-size: 0.85rem; color: var(--muted); max-width: var(--measure); }
+.facts { display: flex; flex-wrap: wrap; gap: 0.5rem 2rem; font: 500 0.85rem/1.4 var(--font-mono); color: var(--ink-2); }
+.facts b { color: var(--ink); font-weight: 500; }
+
+/* ---------- sticky nav */
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-block: 1px solid var(--rule); }
+.nav ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: none; }
+.nav ol::-webkit-scrollbar { display: none; }
+.nav a { display: block; white-space: nowrap; padding: 0.7rem 0.6rem; font: 500 0.8rem/1 var(--font-mono); color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; }
+.nav a:hover { color: var(--ink); }
+.nav a[aria-current="true"] { color: var(--ink); border-bottom-color: var(--cb); }
+
+/* ---------- sections */
+main > section { border-bottom: 1px solid var(--rule); }
+main > section > .wrap { padding-block: 3.5rem; display: flex; flex-direction: column; gap: 1.6rem; }
+.sec-head { display: flex; flex-direction: column; gap: 0.6rem; max-width: var(--measure); }
+.prose { display: flex; flex-direction: column; gap: 1rem; max-width: var(--measure); color: var(--ink-2); }
+.prose strong { color: var(--ink); font-weight: 600; }
+.lede { font-size: 1.125rem; color: var(--ink); }
+
+.finding { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 1.25rem 1.4rem; max-width: var(--measure); display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.95rem; color: var(--ink-2); }
+.finding .eyebrow { color: var(--cb-ink); }
+
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; max-width: var(--wide); }
+@media (max-width: 760px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.ledger { border-top: 2px solid var(--ink); padding-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
+.ledger.hr { border-top-color: var(--hr); }
+.ledger.cbl { border-top-color: var(--cb); }
+.ledger ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.55rem; }
+.ledger li { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 0.75rem; font-size: 0.92rem; color: var(--ink-2); align-items: baseline; }
+.ledger li .num { color: var(--ink); font-weight: 500; font-size: 0.95rem; }
+
+.taxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; max-width: var(--wide); counter-reset: tax; }
+@media (max-width: 760px) { .taxes { grid-template-columns: minmax(0, 1fr); } }
+.tax { border-top: 1px solid var(--ink); padding-top: 0.9rem; display: flex; flex-direction: column; gap: 0.4rem; color: var(--ink-2); font-size: 0.95rem; }
+.tax .eyebrow { color: var(--cb-ink); }
+
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; max-width: var(--wide); }
+@media (max-width: 760px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- figures: diagrams and charts */
+figure { margin: 0; max-width: var(--wide); display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.fig-title { font: 700 1.02rem/1.35 var(--font-display); color: var(--ink); }
+.fig-cap { font-size: 0.84rem; color: var(--muted); max-width: var(--measure); }
+.fig-cap .mono { font-size: 0.8rem; }
+.plate { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; padding: 1.25rem; -webkit-overflow-scrolling: touch; }
+.plate pre.mermaid { margin: 0; background: transparent; font-family: var(--font-body); display: block; min-height: 6rem; color: var(--muted); font-size: 0.75rem; white-space: pre; }
+.plate pre.mermaid[data-processed] { white-space: normal; color: inherit; }
+.plate svg { height: auto; display: block; margin: 0 auto; }
+.plate svg .cluster-label foreignObject { overflow: visible; }
+/* mermaid colours edge labels with primaryTextColor (dark text on light nodes); edge labels sit on the plate, so use page ink */
+.plate svg .edgeLabel, .plate svg .edgeLabel p, .plate svg .edgeLabel span { color: var(--ink) !important; }
+.plate svg text.actor-man, .plate svg text.actor-man tspan { fill: var(--ink) !important; }
+.plate svg .cluster-label foreignObject div { white-space: nowrap !important; display: flex !important; justify-content: center; width: 100%; }
+.diagrams { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; max-width: var(--wide); }
+.diagrams.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.diagrams > figure { min-width: 0; }
+@media (max-width: 860px) { .diagrams.pair { grid-template-columns: minmax(0, 1fr); } }
+.chart-box { position: relative; width: 100%; }
+.chart-box canvas { max-width: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font: 400 0.8rem/1.2 var(--font-mono); color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 0.45rem; }
+.legend i { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2.25rem 2rem; max-width: var(--wide); }
+@media (max-width: 860px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- tables */
+.table-scroll { overflow-x: auto; max-width: var(--wide); border-top: 2px solid var(--ink); -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 0.6rem 0.75rem 0.6rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 500 0.72rem/1.3 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td.n, th.n { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.best { color: var(--ink); font-weight: 600; }
+td.best::after { content: " \25C6"; color: var(--cb); font-size: 0.7em; }
+td.best.hrb::after { color: var(--hr); }
+tr.mark td:first-child { color: var(--cb-ink); font-weight: 600; }
+.status { display: inline-block; font: 500 0.72rem/1 var(--font-mono); letter-spacing: 0.04em; padding: 0.3rem 0.45rem; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+.status.shipped { color: var(--good); }
+.status.next { color: var(--warn); }
+.status.kept { color: var(--muted); }
+.tbl-wide { min-width: 40rem; }
+.tbl-xwide { min-width: 58rem; }
+
+/* ---------- frontier */
+.frontier { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; max-width: var(--wide); counter-reset: gap; }
+@media (max-width: 760px) { .frontier { grid-template-columns: minmax(0, 1fr); } }
+.gap { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 1.2rem 1.25rem; display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; counter-increment: gap; }
+.gap h3::before { content: "T" counter(gap) "  "; font: 500 0.78rem/1 var(--font-mono); color: var(--cb-ink); letter-spacing: 0.04em; white-space: pre; }
+.gap dl { margin: 0; display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 0.5rem 0.75rem; font-size: 0.9rem; }
+.gap dt { font: 500 0.7rem/1.6 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.gap dd { margin: 0; color: var(--ink-2); }
+
+.refs { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.85rem; color: var(--ink-2); max-width: var(--measure); }
+footer .wrap { padding-block: 2.5rem 3.5rem; color: var(--muted); font-size: 0.82rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.fn { font-size: 0.82rem; color: var(--muted); max-width: var(--measure); border-left: 2px solid var(--rule); padding-left: 0.8rem; }
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <span class="eyebrow">A Preprint &middot; Orquentra Labs Inc.</span>
+    <span class="eyebrow">CodeBuddy 2.16 &middot; November 2026</span>
+  </div>
+</header>
+
+<section class="hero" aria-labelledby="title">
+  <div class="wrap">
+    <div class="stack">
+      <h1 id="title">CodeBuddy: a local context and memory layer for AI coding agents, <em>evidence first</em></h1>
+      <p class="sub">From 0.1 to 2.16 in five months: how it was planned, how it runs, and two controlled studies on a production codebase.</p>
+      <div class="byline"><span><strong>Harshit Verma</strong>, Chief Executive Officer</span><span><strong>Ayush Kumar</strong>, Chief Technology Officer</span><span>Orquentra Labs Inc.</span><span class="mono">npm: @orquentra/codebuddy</span><a href="codebuddy-2.16.pdf" download>Download the paper (PDF)</a></div>
+    </div>
+
+    <div class="stack">
+      <div class="kpis" role="list" aria-label="CodeBuddy 2.16 headline results against stock Claude Code">
+        <div class="kpi" role="listitem"><span class="v">79%</span><span class="l">less tool output</span><span class="s">20-command corpus, 341k &rarr; 73k tokens</span></div>
+        <div class="kpi" role="listitem"><span class="v">10.0%</span><span class="l">fewer tokens processed</span><span class="s">14.86M vs. 16.51M (stock)</span></div>
+        <div class="kpi" role="listitem"><span class="v">4.4%</span><span class="l">lower total spend</span><span class="s">$5.28 vs. $5.53 (stock)</span></div>
+        <div class="kpi" role="listitem"><span class="v">12/12</span><span class="l">conventions recalled</span><span class="s">fresh process, near wording</span></div>
+      </div>
+      <p class="kpi-note">23 merged Litestar bug fixes, 138 Claude Code sessions, 46 task-runs per arm. Spend and token figures are totals over all task-runs; the paired median cost per task was slightly higher than stock and not significantly different, and the paired per-task difference in tokens processed is not significant (p<sub>Holm</sub> = 1.00).</p>
+      <div class="facts" aria-label="Program facts">
+        <span><b>4,966</b> npm downloads</span><span><b>26</b> releases, 2.0.0 to 2.16.0</span><span><b>459</b> commits since 18 Jun 2026</span><span><b>10</b> research loops, 13&ndash;18 Nov</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<nav class="nav" aria-label="Sections">
+  <div class="wrap">
+    <ol>
+      <li><a href="#headline">Headline</a></li>
+      <li><a href="#context-tax">Context tax</a></li>
+      <li><a href="#related">Related work</a></li>
+      <li><a href="#planning">Planning</a></li>
+      <li><a href="#system">System</a></li>
+      <li><a href="#versions">Versions</a></li>
+      <li><a href="#method">Method</a></li>
+      <li><a href="#results-2153">Results 2.15.3</a></li>
+      <li><a href="#results-216">Results 2.16</a></li>
+      <li><a href="#adoption">Adoption</a></li>
+      <li><a href="#why">Why it matters</a></li>
+      <li><a href="#frontier">Frontier</a></li>
+      <li><a href="#conclusion">Conclusion</a></li>
+    </ol>
+  </div>
+</nav>
+
+<main>
+
+<!-- ================================================================ ABSTRACT -->
+<section id="headline" aria-labelledby="h-headline">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Abstract</span>
+      <h2 id="h-headline">Measured on real bug fixes, against a pinned competitor</h2>
+    </div>
+    <div class="prose">
+      <p class="lede">CodeBuddy is a local context and memory layer. It attaches to the agent through lifecycle hooks and a lean Model Context Protocol profile, stays out of the model request path, and keeps its index and memory on the developer's machine.</p>
+      <p>On 23 merged Litestar bug fixes run as 138 Claude Code sessions, CodeBuddy 2.16 removed <strong>79%</strong> of tool-output tokens on a 20-command corpus (Headroom 0.44: 55%), processed <strong>10.0%</strong> fewer tokens than stock Claude Code, spent <strong>4.4%</strong> less in total ($5.28 vs. $5.53; the paired median cost per task was slightly higher than stock, not significantly), and recalled <strong>12/12</strong> stored project conventions from a fresh process.</p>
+      <p>In the earlier 2.15.3 study of 117 sessions, agents with CodeBuddy answered <strong>15/15</strong> questions on unwritten team rules, matching a hand-written notes file holding all 220 notes at 27% lower cost per question (a no-information control answered 0/15). Context packs were 62&ndash;90% smaller than the files they replaced.</p>
+    </div>
+
+    <div class="split" aria-label="Where each tool leads in the 2.16 head-to-head">
+      <div class="ledger cbl">
+        <span class="eyebrow">Where CodeBuddy 2.16 leads</span>
+        <ul>
+          <li><span class="num">79%</span><span>less tool output on the 20-command corpus (341k &rarr; 73k tokens; Headroom 153k, 55%)</span></li>
+          <li><span class="num">$5.28</span><span>lowest total bill of three arms: 4.4% below stock, 3.6% below Headroom's $5.48</span></li>
+          <li><span class="num">14.86M</span><span>tokens processed, 10.0% fewer than stock's 16.51M</span></li>
+          <li><span class="num">12/12</span><span>conventions recalled from a fresh process (10/12 paraphrased), a median 146 tokens and 42&nbsp;ms per recall</span></li>
+        </ul>
+      </div>
+      <div class="ledger hr">
+        <span class="eyebrow">Where Headroom 0.44 leads</span>
+        <ul>
+          <li><span class="num">28/46</span><span>fixes passed, against 26/46 for CodeBuddy and for stock</span></li>
+          <li><span class="num">$0.196</span><span>per passing fix, against $0.203 for CodeBuddy</span></li>
+          <li><span class="num">178 MB</span><span>median session RAM, against 1,292 MB for CodeBuddy</span></li>
+          <li><span class="num">35.3k</span><span>median peak context, against 35.7k tokens</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="kpi-note">Neither tool's pass rate differs significantly from stock (McNemar p = 1.00 for CodeBuddy, 0.50 for Headroom), and CodeBuddy's paired per-task cost difference is not significant (p<sub>Holm</sub> = 0.69).</p>
+  </div>
+</section>
+
+<!-- ================================================================ 1 INTRODUCTION -->
+<section id="context-tax" aria-labelledby="h-tax">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">1 &middot; Introduction</span>
+      <h2 id="h-tax">Every agent session pays a context tax</h2>
+    </div>
+    <div class="prose">
+      <p>Coding agents such as Claude Code, Codex and OpenCode now search repositories, read files, run tests and write patches. Each step has a price in context. A verbose test log or a whole-file read enters the conversation and is re-sent on every later turn; every exposed tool schema is paid for on every request; and long contexts are used less reliably than short ones. Each new session also starts empty, so a team's unwritten rules are rediscovered at cost, pasted wholesale into an instructions file, or lost.</p>
+    </div>
+    <div class="taxes">
+      <div class="tax"><span class="eyebrow">P1 &middot; Token volume</span><h3>Whole files, whole logs</h3><p>Agents take in whole files and whole command outputs when only a fraction is relevant.</p></div>
+      <div class="tax"><span class="eyebrow">P2 &middot; Context selection</span><h3>A few files among thousands</h3><p>The agent must find the few relevant files, and should hear nothing when the evidence is weak.</p></div>
+      <div class="tax"><span class="eyebrow">P3 &middot; Project memory</span><h3>Rules nobody wrote down</h3><p>Decisions and conventions must reach the agent when they apply, without injecting every note into every session.</p></div>
+    </div>
+    <div class="prose">
+      <p>CodeBuddy addresses all three in one local layer that runs <strong>beside</strong> the agent, not between the agent and the model provider. Hooks deliver ranked file pointers and recalled facts, a reducer shortens noisy command output while keeping the full text recoverable, and a reviewed project memory carries decisions across sessions.</p>
+      <p>The program moved fast and stayed measured. The first commit landed on 18 June 2026; by 17 November the project had 459 commits and 26 releases from 2.0.0 to 2.16.0, 20 of them between 1 and 17 November. Ten research loops ran between 13 and 18 November, and the gaps they found were ranked into fixes that shipped within days.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 2 RELATED WORK -->
+<section id="related" aria-labelledby="h-related">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">2 &middot; Background and related work</span>
+      <h2 id="h-related">Where CodeBuddy sits among context tools</h2>
+    </div>
+    <div class="cards">
+      <div class="finding"><span class="eyebrow">Retrieval for code</span><p>Repository-level retrieval improves completion, and agentless pipelines show that explicit localisation competes with free-form exploration. Agentic-search comparisons depend strongly on the harness, so both studies hold agent, model, prompt and permissions fixed across arms.</p></div>
+      <div class="finding"><span class="eyebrow">Context compression</span><p>Prompt compression learns which tokens to drop. Headroom takes the proxy route and compresses requests on the way out; RTK filters shell output through a hook. CodeBuddy decides which project evidence enters the context at all, from inside the agent loop.</p></div>
+      <div class="finding"><span class="eyebrow">Code intelligence</span><p>Serena exposes symbol-level tools, codebase-memory-mcp serves a code knowledge graph, and context-mode sandboxes tool output. The 2.15.3 paper compared CodeBuddy with all five of these tools in their default setups.</p></div>
+      <div class="finding"><span class="eyebrow">Agent memory</span><p>MemGPT, Mem0, Zep and LongMemEval study memory hierarchies, extraction and temporally valid facts. CodeBuddy targets repository-scoped engineering memory: facts tied to a codebase and its team, reviewed before storage and delivered with date and source.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 3 PLANNING -->
+<section id="planning" aria-labelledby="h-planning">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">3 &middot; How we planned it</span>
+      <h2 id="h-planning">No claim without a benchmark, no gap without a ranked fix</h2>
+    </div>
+    <div class="prose">
+      <p>Each loop starts from a sceptical research handoff, fixes its measurement in writing before any paid run, benchmarks on the public Litestar repository, ranks the gaps by expected effect and effort, and ships the top fixes. The release is re-benchmarked, and the result seeds the next handoff.</p>
+    </div>
+    <figure>
+      <figcaption class="fig-title">The research-to-release loop</figcaption>
+      <div class="plate"><pre class="mermaid" aria-label="Research-to-release loop diagram">flowchart LR
+  subgraph R1[Plan]
+    direction TB
+    A[Scout handoff]:::g --&gt; B[Hypothesis]:::g --&gt; C[Preregistration]:::cb --&gt; D[Benchmark]:::cb
+  end
+  subgraph R2[Ship]
+    direction TB
+    E[Ranked improvement plan]:::g --&gt; F[Release]:::g --&gt; G[Re-benchmark&lt;br/&gt;feeds the next scout handoff]:::cb
+  end
+  R1 --&gt; R2
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  classDef g fill:#E5E7EB,stroke:#9AA3AF,color:#111827</pre></div>
+    </figure>
+
+    <div class="finding">
+      <span class="eyebrow">Case study: two turns of the loop</span>
+      <p><strong>2.9 &rarr; 2.10.</strong> A project-reported agent A/B on 23 Litestar fixes, which we did not independently reproduce, found that CodeBuddy 2.9 cost a median 22% more per task than stock Claude Code, with an unchanged pass rate, and that the agent made 0 calls to CodeBuddy's tools. The cost was the fixed per-session prefix. Version 2.10 cut the default tool schemas from 3,486 to 253 tokens (schema counts vary slightly by release, profile and counting method: 294 and 3,934 in the 2.15.3 paper, 253 and 3,463 in the 2.16 report) and the managed rules from 761 to 144 tokens.</p>
+      <p><strong>2.15.3 &rarr; 2.16.</strong> The five-tool comparison found that setup rules and hooks disagreed (memory cost $0.0233 per question against $0.0199 for Headroom in token mode) and that output reduction was opt-in. An improvement plan ranked seven fixes. CodeBuddy 2.16.0 shipped two days later, and the 2.16 head-to-head measured a 79% output cut on the command corpus and 4.4% lower total spend than stock.</p>
+    </div>
+
+    <figure>
+      <figcaption class="fig-title">The 2.15.3 improvement plan, in rank order, with status after 2.16.0</figcaption>
+      <div class="table-scroll">
+        <table class="tbl-wide">
+          <thead><tr><th>#</th><th>Fix</th><th>Gap it targets (measured in 2.15.3)</th><th>Status after 2.16</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td>Hooks-first setup</td><td>Rules and hooks disagreed; memory cost $0.0233 vs. $0.0199 per question (Headroom token mode)</td><td><span class="status shipped">Shipped</span></td></tr>
+            <tr><td class="num">2</td><td>Answer-ready memory: dated, sourced, stated directly</td><td>Extra verification turns and hedged answers on the same memory questions</td><td><span class="status shipped">Shipped</span></td></tr>
+            <tr><td class="num">3</td><td>Cache-stable delivery: standing rules at session start, short per-prompt pointers</td><td>Per-prompt text re-written to the prompt cache; SWE-bench pilot cost +17.7%</td><td><span class="status shipped">Shipped</span></td></tr>
+            <tr><td class="num">4</td><td>Automatic command-output reduction</td><td>Reduction was opt-in</td><td><span class="status shipped">Shipped</span> <span class="status next">Next: reached 0/46 sessions</span></td></tr>
+            <tr><td class="num">5</td><td>Background indexing for single sessions</td><td>Mean 182&nbsp;s of setup per repository in the SWE-bench pilot</td><td><span class="status shipped">In part</span> <span class="status next">Next: usable first session</span></td></tr>
+            <tr><td class="num">6</td><td>Better retrieval for reworded tasks</td><td>Code-search accuracy 34/36 vs. 36/36 for Headroom token mode</td><td><span class="status shipped">Shipped</span> <span class="status next">Next: re-measure</span></td></tr>
+            <tr><td class="num">7</td><td>Stay out of the request path</td><td>Keeps the code-search cost edge in the five-tool comparison: +3% vs. +26% for Headroom token mode, relative to no tool</td><td><span class="status kept">Kept as a design rule</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fig-cap">Fix 4 shipped, but the reducer was used in 0 of 46 benchmark sessions, so its 79% corpus cut has not yet reached session cost. Fix 5 moved indexing off the critical path, but the first full index of Litestar still took a median 494&nbsp;s. Both carry forward as numbered targets.</p>
+    </figure>
+
+    <figure>
+      <figcaption class="fig-title">Ten research loops, 13&ndash;18 November 2026</figcaption>
+      <div class="table-scroll">
+        <table class="tbl-wide">
+          <thead><tr><th>Loop</th><th>What it fed into the product or the method</th></tr></thead>
+          <tbody>
+            <tr><td>Correct memory beyond compression</td><td>Split discovery, fact retrieval, lifecycle and delivery into separate concerns; found that approving a memory correction adds a fact instead of replacing one.</td></tr>
+            <tr><td>Cost per accepted patch</td><td>Specified complete cost accounting: failure ledgers, paired task-level uncertainty, independent grading.</td></tr>
+            <tr><td>Closing the historical Headroom comparison</td><td>Labelled an older comparison as version-unknown and pinned Headroom 0.44.0 as the baseline for both studies.</td></tr>
+            <tr><td>Native memory in headless agents</td><td>A protocol for qualifying native-memory baselines fairly before comparing against them.</td></tr>
+            <tr><td>Tracing missing evidence</td><td>Located where relevant evidence was lost inside retrieval; informed the fixes verified in 2.15.3.</td></tr>
+            <tr><td>What 7/7 proves about memory</td><td>Separated a development smoke result from evidence of savings; required real-session cost measurement.</td></tr>
+            <tr><td>2.15 memory and token trade-offs</td><td>Turned release hypotheses into measurable outcomes; led to dated and sourced memories in 2.16.</td></tr>
+            <tr><td>Memory that survives correction</td><td>Designed replacement semantics for corrected facts.</td></tr>
+            <tr><td>Withdrawal that survives compaction</td><td>Showed that withdrawn guidance can persist through session checkpoints; set lifecycle regression tests ahead of paid behaviour tests.</td></tr>
+            <tr><td>Lean context without losing memory</td><td>Scoped the next study: consecutive sessions with component ablations, cold and ready index states measured separately.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================================================================ 4 SYSTEM -->
+<section id="system" aria-labelledby="h-system">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">4 &middot; System overview</span>
+      <h2 id="h-system">Three capabilities, one local store, six lifecycles</h2>
+    </div>
+    <div class="prose">
+      <p>We describe CodeBuddy as a black box: what each capability does, when it runs and what it delivers. The <strong>context layer</strong> ranks the files a prompt is likely about and delivers short pointers. <strong>Project memory</strong> holds reviewed team facts and recalls the ones that apply. The <strong>output reducer</strong> shortens noisy command output and keeps the original. The agent reaches them through hooks and an optional MCP server whose lean default profile costs 253 schema tokens.</p>
+    </div>
+    <div class="diagrams">
+      <figure>
+        <figcaption class="fig-title">Capability architecture</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Capability architecture diagram">flowchart TB
+  U([Developer]) --&gt; A[AI coding agent&lt;br/&gt;Claude Code or Codex]
+  A --&gt;|API requests, unchanged| P[Model provider]
+  A &lt;--&gt;|lifecycle hooks and&lt;br/&gt;lean tool profile| CB
+  subgraph CB[CodeBuddy: local layer]
+    direction LR
+    C[Context layer]:::cb
+    M[Project memory]:::cb
+    R[Output reducer]:::cb
+    S[(Local store)]:::cb
+    C --- S
+    M --- S
+    R --- S
+  end
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  style CB fill:#FFF7F2,stroke:#E8743B</pre></div>
+        <p class="fig-cap">The agent talks to the model provider directly; CodeBuddy attaches through hooks and a lean tool profile.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Where each tool attaches</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Attachment comparison diagram">flowchart TB
+  subgraph CBS[CodeBuddy: inside the agent loop]
+    direction LR
+    A1[Agent]:::g &lt;--&gt;|hooks and MCP| H[CodeBuddy]:::cb
+  end
+  subgraph HRS[Headroom 0.44: in the request path]
+    direction LR
+    A2[Agent]:::g --&gt;|ANTHROPIC_BASE_URL| X[Local HTTP proxy]:::hr
+    A2 -.-&gt;|retrieve tool| MR[MCP retrieve server]:::g
+  end
+  A1 --&gt;|API requests, direct| API1[Model API]:::g
+  X --&gt; API2[Model API]:::g
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  classDef hr fill:#DCE9F8,stroke:#2E7BD6,stroke-width:2px,color:#1a1a1a
+  classDef g fill:#E5E7EB,stroke:#9AA3AF,color:#111827</pre></div>
+        <p class="fig-cap">Headroom 0.44 sits in the request path as a local proxy. In the code-search sessions of the 2.15.3 five-tool comparison, CodeBuddy cost 3% more than no tool and Headroom in token mode 26% more, because rewritten requests raised cache traffic.</p>
+      </figure>
+    </div>
+    <div class="taxes">
+      <div class="tax"><span class="eyebrow">Bound everything</span><p>Every payload has a budget.</p></div>
+      <div class="tax"><span class="eyebrow">Never destroy information</span><p>Every reduction is recoverable.</p></div>
+      <div class="tax"><span class="eyebrow">Prefer silence to noise</span><p>Nothing is delivered when evidence is weak. Every item shows its provenance, and memories show when they were recorded.</p></div>
+    </div>
+
+    <div class="diagrams">
+      <figure>
+        <figcaption class="fig-title">Install and onboarding: one command, no questions, hooks first</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Onboarding sequence diagram">sequenceDiagram
+  actor D as Developer
+  participant CLI as CodeBuddy setup
+  participant AG as Agent config
+  participant ST as Local store
+  D-&gt;&gt;CLI: run one setup command
+  CLI-&gt;&gt;AG: detect agent, register hooks
+  CLI-&gt;&gt;ST: create store, index repository
+  CLI--&gt;&gt;D: ready, zero questions asked
+  Note over D,ST: Hooks first. The MCP server is optional.</pre></div>
+        <p class="fig-cap">Hooks are installed before rules are written, so the instructions the agent reads match the context it receives. Indexing runs in a background worker.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Repository index: only changed files are re-indexed</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Index lifecycle state diagram">stateDiagram-v2
+  [*] --&gt; Unindexed
+  Unindexed --&gt; Indexing: first run
+  Indexing --&gt; Fresh: indexed once into local store
+  Fresh --&gt; Stale: files change
+  Stale --&gt; Refreshing: incremental update
+  Refreshing --&gt; Fresh: changed files only
+  Fresh --&gt; [*]: project removed
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  class Fresh,Refreshing cb</pre></div>
+        <p class="fig-cap">A stale index is repaired, not dropped. The first build is the expensive step: a median 494&nbsp;s on Litestar.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Session: four hook points</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Session sequence diagram">sequenceDiagram
+  actor D as Developer
+  participant AG as Agent
+  participant CB as CodeBuddy
+  participant ST as Local store
+  AG-&gt;&gt;CB: session start
+  CB-&gt;&gt;ST: load project memory
+  CB--&gt;&gt;AG: short orientation
+  D-&gt;&gt;AG: prompt
+  AG-&gt;&gt;CB: prompt submit
+  CB-&gt;&gt;ST: rank relevant files
+  CB--&gt;&gt;AG: file pointers and recalled facts
+  AG-&gt;&gt;CB: before shell command
+  CB--&gt;&gt;AG: reduced command output
+  AG-&gt;&gt;CB: end of turn or compaction
+  CB-&gt;&gt;ST: capture new facts for review</pre></div>
+        <p class="fig-cap">Standing rules arrive once at session start, so they stay in the provider's cached prefix. Candidate facts go to a review queue, not straight into memory.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Context delivery: silent when nothing is relevant</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Context delivery flow diagram">flowchart TB
+  P[Prompt]:::g --&gt; Q{Anything relevant&lt;br/&gt;in the project?}:::g
+  Q -- no --&gt; N[Stay silent]:::g
+  Q -- yes --&gt; F[Rank files]:::cb
+  Q -- yes --&gt; M[Recall memory]:::cb
+  F --&gt; B[Compose lean context]:::cb
+  M --&gt; B
+  B --&gt; I[Inject into prompt]:::cb
+  I --&gt; AG[Agent]:::g
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  classDef g fill:#E5E7EB,stroke:#9AA3AF,color:#111827</pre></div>
+        <p class="fig-cap">The median prompt hint in 2.16 was 49 tokens, on top of a 268-token rules block and 253 tokens of tool schemas.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Command-output reduction: shorter view, same exit code</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Output reduction sequence diagram">sequenceDiagram
+  participant AG as Agent
+  participant OR as Output reducer
+  participant SH as Shell
+  participant ST as Local store
+  AG-&gt;&gt;OR: shell command
+  OR-&gt;&gt;SH: run command
+  SH--&gt;&gt;OR: full output and exit code
+  OR-&gt;&gt;ST: keep full output
+  OR--&gt;&gt;AG: reduced output, same exit code
+  AG-&gt;&gt;OR: codebuddy output show
+  OR-&gt;&gt;ST: fetch full output
+  ST--&gt;&gt;AG: complete original output</pre></div>
+        <p class="fig-cap">Since 2.16 supported test, build, lint and git-log commands route through the reducer automatically. The full output stays in the local store, one command away. In the benchmarked 2.16.0 sessions the reducer did not fire (0/46), so confirming automatic routing end to end is frontier item 1.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Memory: reviewed, recalled, retired</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Memory lifecycle state diagram">stateDiagram-v2
+  [*] --&gt; Captured
+  Captured --&gt; Queued: sent to review queue
+  Queued --&gt; Stored: approved
+  Queued --&gt; [*]: rejected
+  Stored --&gt; Recalled: keyword or meaning match
+  Recalled --&gt; Stored
+  Stored --&gt; Superseded: correction arrives
+  Superseded --&gt; Retired
+  Stored --&gt; Retired: no longer true
+  Retired --&gt; [*]
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  class Stored,Recalled cb</pre></div>
+        <p class="fig-cap">The designed lifecycle. One step is not yet complete: approving a correction adds the new fact but does not yet retire the old one.</p>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 5 VERSIONS -->
+<section id="versions" aria-labelledby="h-versions">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">5 &middot; Version lifecycle</span>
+      <h2 id="h-versions">Five months, 459 commits, 26 releases</h2>
+    </div>
+    <div class="prose">
+      <p>From the first commit on 18 June 2026 to 2.16.0 on 17 November, the releases fall into six phases. The pace is concentrated where the evidence was: 20 of the 26 releases shipped between 1 and 17 November, once the dashboard, the evaluation harness and the research loops were in place. At 2.4.0 the package moved to <span class="mono">@orquentra/codebuddy</span>, and 2.4 also removed estimated token-savings figures so that only measured numbers are reported.</p>
+    </div>
+    <figure>
+      <figcaption class="fig-title">Six phases; highlighted phases contain the three releases that followed directly from a measurement</figcaption>
+      <div class="plate"><pre class="mermaid" aria-label="Version timeline diagram">flowchart LR
+  subgraph R1[Jun to 2 Nov 2026]
+    direction TB
+    P1["&lt;b&gt;Foundation&lt;/b&gt;&lt;br/&gt;0.1 to 2.0 (Jun - Aug)&lt;br/&gt;Memory server&lt;br/&gt;Automatic context engine"]:::g
+    P2["&lt;b&gt;Hardening and licensing&lt;/b&gt;&lt;br/&gt;2.1 to 2.4 (Aug - 2 Nov)&lt;br/&gt;Concurrency and security&lt;br/&gt;MIT licence&lt;br/&gt;Move to the Orquentra name"]:::g
+    P3["&lt;b&gt;Evidence&lt;/b&gt;&lt;br/&gt;2.5 to 2.10&lt;br/&gt;Dashboard, calibrated evals&lt;br/&gt;Python, telemetry&lt;br/&gt;A/B-driven lean prefix"]:::cb
+    P1 --&gt; P2 --&gt; P3
+  end
+  subgraph R2[November 2026]
+    direction TB
+    P4["&lt;b&gt;Continuity&lt;/b&gt;&lt;br/&gt;2.11 to 2.14&lt;br/&gt;Multi-agent hooks&lt;br/&gt;Silent when empty"]:::g
+    P5["&lt;b&gt;Intelligence&lt;/b&gt;&lt;br/&gt;2.15.x&lt;br/&gt;One-command setup (2.15.1)&lt;br/&gt;Calibration fixes (2.15.3)"]:::cb
+    P6["&lt;b&gt;Hooks-first&lt;/b&gt;&lt;br/&gt;2.16&lt;br/&gt;Hooks-first setup&lt;br/&gt;Automatic output reduction"]:::cb
+    P4 --&gt; P5 --&gt; P6
+  end
+  R1 --&gt; R2
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  classDef g fill:#E5E7EB,stroke:#9AA3AF,color:#111827</pre></div>
+    </figure>
+    <figure>
+      <figcaption class="fig-title">Every release from 0.1 to 2.16.0</figcaption>
+      <div class="table-scroll">
+        <table class="tbl-wide">
+          <thead><tr><th>Version</th><th>Date (2026)</th><th>What changed</th></tr></thead>
+          <tbody id="versions-body"></tbody>
+        </table>
+      </div>
+      <p class="fig-cap">From the project changelog. 0.1.x and 2.0.0 are undated there. Marked rows are the package move and the three releases that followed directly from a measurement.</p>
+    </figure>
+  </div>
+</section>
+
+<!-- ================================================================ 6 METHOD -->
+<section id="method" aria-labelledby="h-method">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">6 &middot; Evaluation methodology</span>
+      <h2 id="h-method">Two controlled studies on one public repository</h2>
+    </div>
+    <div class="prose">
+      <p>Both studies run on Litestar, an actively maintained open-source Python ASGI framework, and hold the agent, model, prompt and tool permissions fixed across arms, so the only difference is the tool under test.</p>
+    </div>
+    <div class="table-scroll">
+      <table class="tbl-wide">
+        <thead><tr><th></th><th>2.15.3 program</th><th>2.16 head-to-head</th></tr></thead>
+        <tbody>
+          <tr><td>Question</td><td>Does CodeBuddy deliver team memory and smaller context, and how does it compare with other tools?</td><td>Does CodeBuddy lower tokens and cost on real bug fixes, against Headroom and stock?</td></tr>
+          <tr><td>Tasks</td><td>12 localisation tasks and 5 team-rule questions; 1,366 indexed files</td><td>23 merged bug-fix pull requests, started at the parent commit</td></tr>
+          <tr><td>Arms</td><td>No tool, CodeBuddy, notes file; then five open-source tools</td><td>Stock Claude Code, CodeBuddy 2.16.0, Headroom 0.44.0</td></tr>
+          <tr><td>Sessions</td><td>117, plus 378 in the tool comparison and a 20-task SWE-bench pilot</td><td>138: 2 runs per task per arm, 46 task-runs per arm</td></tr>
+          <tr><td>Scoring</td><td>Gold answers fixed before any run</td><td>The pull request's own hidden test check</td></tr>
+          <tr><td>Statistics</td><td>Task-clustered bootstrap</td><td>Paired bootstrap, permutation with Holm, exact McNemar</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="diagrams pair">
+      <figure>
+        <figcaption class="fig-title">The 2.16 benchmark pipeline</figcaption>
+        <div class="plate"><pre class="mermaid" aria-label="Benchmark pipeline diagram">flowchart TB
+  T[23 merged Litestar bug-fix PRs&lt;br/&gt;start at parent commit, agent sees issue text only]:::g
+  T --&gt; A1[Stock]:::g
+  T --&gt; A2[CodeBuddy 2.16]:::cb
+  T --&gt; A3[Headroom 0.44]:::g
+  A1 --&gt; RUN[2 runs each, model claude-sonnet-5-5&lt;br/&gt;hidden PR test check]:::g
+  A2 --&gt; RUN
+  A3 --&gt; RUN
+  RUN --&gt; ST[Paired statistics]:::cb
+  ST --&gt; L[Bootstrap 95% CI clustered by task&lt;br/&gt;Sign-flip permutation, Holm&lt;br/&gt;Exact McNemar]:::g
+  classDef cb fill:#FBE3D3,stroke:#E8743B,stroke-width:2px,color:#1a1a1a
+  classDef g fill:#E5E7EB,stroke:#9AA3AF,color:#111827</pre></div>
+      </figure>
+      <div class="prose">
+        <p><strong>Arms.</strong> All three arms use the identical headless command, model (<span class="mono">claude-sonnet-5-5</span>), prompt, permission mode and tool allow-list. Headroom 0.44.0 uses its documented Claude Code integration as a base install, with its Kompress ML compressor disabled and its memory feature not installed.</p>
+        <p><strong>Isolation.</strong> Every session starts from a clean checkout; CodeBuddy's per-session journal is cleared, runs are paired by task and run number, and arm order rotates.</p>
+        <p><strong>Statistics.</strong> Median paired per-task differences with 95% intervals from a 10,000-resample bootstrap clustered by task; sign-flip permutation p-values with Holm correction; exact McNemar on pass rates. Totals are reported beside medians because they answer a different question: medians describe a typical task, totals describe the bill.</p>
+        <p><strong>Known limits.</strong> Two runs per task is few: the same task's stock cost ranged from $0.048 to $0.509. Arms ran concurrently on one machine, so wall-clock times are indicative only. All figures come from one Python repository. Every number in the companion report is computed from per-session result files listed with SHA-256 hashes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 7 RESULTS I -->
+<section id="results-2153" aria-labelledby="h-r1">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">7 &middot; Results I: the 2.15.3 program</span>
+      <h2 id="h-r1">Team memory that matches a full notes file, at lower cost</h2>
+    </div>
+    <div class="finding">
+      <span class="eyebrow">What 2.15.3 established</span>
+      <p>With CodeBuddy, agents answered <strong>15/15</strong> questions on unwritten team rules, matching a hand-written notes file holding all 220 notes at <strong>27%</strong> lower cost per question; a no-information control answered 0/15. Context packs were <strong>62&ndash;90%</strong> smaller than the files they replaced, command output fell by 92% and oversized first reads by 93%, and keyword recall ranked the right fact first in <strong>20/20</strong> queries at both 20 and 220 stored facts. In the five-tool comparison, CodeBuddy had the lowest cost per correct answer among the five arms that ran both task types (four tool configurations and no tool; $0.0507, 49/51 correct).</p>
+      <p>Two results were not yet wins, and both fed the 2.16 plan: in the three-arm paired agent study (36 code-search sessions per arm), short code search cost 18% more than no tool (95% CI +5% to +35%; the separate five-tool comparison measured +3%), and on a 20-task SWE-bench Verified pilot CodeBuddy solved 13/20 against 14/20 for the stock agent.</p>
+    </div>
+    <div class="prose">
+      <p><strong>Project memory.</strong> The stock agent searched for 4.6 turns on average and answered 0/15. With CodeBuddy the prompt hook recalled the right note and the agent answered 15/15 in 1.2 turns, at $0.0227 per question. A notes file holding all 220 notes also answered 15/15 and was faster (4.8&nbsp;s against 7.7&nbsp;s), but cost $0.0310 per question, because it writes every note to the prompt cache in each session.</p>
+      <p><strong>Recall at scale.</strong> An 11-fold increase in stored notes left first-rank keyword recall unchanged at 20/20, with p95 latency at or below 25&nbsp;ms. Reworded recall was lower and declined with scale (top-3: 17/20 at 20 facts, 15/20 at 220). At 220 notes one recall cost 682 tokens against 5,422 for loading the notes file.</p>
+    </div>
+    <div class="charts">
+      <figure>
+        <figcaption class="fig-title">Context packs cut tokens per call by 62&ndash;90%</figcaption>
+        <div class="chart-box" style="height: 230px"><canvas id="ch-ctx" role="img" aria-label="Tokens saved per call by delivery type, CodeBuddy 2.15.3"></canvas></div>
+        <p class="fig-cap">Mean tokens per call, without &rarr; with CodeBuddy 2.15.3. Packs are means over 40 tasks; repeats are 30 packs and 10 bootstraps. Source: 2.15.3 paper.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">CodeBuddy had the lowest cost per correct answer of five arms</figcaption>
+        <div class="chart-box" style="height: 260px"><canvas id="ch-five" role="img" aria-label="Cost per correct answer by arm, 2.15.3 five-tool comparison"></canvas></div>
+        <p class="fig-cap">51 sessions per arm (36 localisation, 15 memory), for the arms that ran both task types. Headroom in token mode answered all 51, at 12% higher cost per correct answer, and was the cheapest memory arm on its own ($0.0199 per question against $0.0233). The combined figure depends on the task mix.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Same harness, three releases: top-1 retrieval rose from 70% to 83%</figcaption>
+        <div class="chart-box" style="height: 200px"><canvas id="ch-ver" role="img" aria-label="Exact-wording top-1 file retrieval by version"></canvas></div>
+        <p class="fig-cap">Exact-wording tasks with a correct file ranked first, identical 2.15.3 harness. Top-3 rose from 77% to 90% over the same releases; reworded retrieval did not improve, and prompt-hook latency rose (median 1,094&nbsp;ms against 727&nbsp;ms in 2.14.0).</p>
+      </figure>
+      <div class="prose">
+        <p><strong>Where cost did not yet fall.</strong> In the 36 paired code-search sessions of the three-arm agent study, CodeBuddy used 10% fewer input tokens and 8% fewer turns at equal accuracy (33/36 in both arms), but cost 18% more. The cause was prompt-cache pricing: hints were new text in each session and were written to the cache at a premium, while the tokens they saved were mostly cheap cache reads. On the SWE-bench pilot CodeBuddy cost $2.16 against $1.83 (+17.7%, 95% CI &minus;1.7% to +36.9%). Both became 2.16 fixes: cache-stable delivery and background indexing.</p>
+        <p><strong>File retrieval.</strong> On tasks phrased in the code's own words, CodeBuddy ranked a correct file first in 83% of tasks while returning about 3 files, where a package-level keyword ranker returned about 140. Reworded tasks remained hard (top-1 30%, top-3 50%).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 8 RESULTS II -->
+<section id="results-216" aria-labelledby="h-r2">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">8 &middot; Results II: the 2.16 head-to-head</span>
+      <h2 id="h-r2">Lowest total bill, largest output cut, and four measures where Headroom led</h2>
+    </div>
+    <div class="prose">
+      <p>23 merged Litestar bug fixes, 138 sessions, 46 task-runs per arm, summarised from the companion technical report. The diamond marks the best value in each row, whichever arm holds it.</p>
+    </div>
+    <figure>
+      <div class="table-scroll">
+        <table class="tbl-wide" id="scorecard">
+          <thead><tr><th>Measure</th><th class="n">CodeBuddy 2.16</th><th class="n">Headroom 0.44</th><th class="n">Stock</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="fig-cap">Totals are over 46 task-runs per arm; RAM is the tool's own processes during sessions.</p>
+    </figure>
+
+    <div class="charts">
+      <figure>
+        <figcaption class="fig-title">CodeBuddy had the lowest total bill: $5.28, 4.4% below stock</figcaption>
+        <div class="chart-box" style="height: 200px"><canvas id="ch-spend" role="img" aria-label="Total spend over 46 task-runs by arm"></canvas></div>
+        <p class="fig-cap">Total spend over 46 task-runs, stock baseline dashed. These are totals. The paired median per-task cost was $0.0765 for CodeBuddy against $0.0733 for stock (difference +$0.0040, 95% CI &minus;$0.0038 to +$0.0105, p<sub>Holm</sub> = 0.69); neither tool's per-task cost differs significantly from stock. CodeBuddy was cheapest on 9 of 23 tasks, Headroom on 5 and stock on 9 (no ties).</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">CodeBuddy returned 73k of 341k tool-output tokens: 79% less</figcaption>
+        <div class="chart-box" style="height: 200px"><canvas id="ch-output" role="img" aria-label="Tool-output tokens over the 20-command corpus by arm"></canvas></div>
+        <p class="fig-cap">The corpus includes one very large read (the first 1,500 lines of <span class="mono">uv.lock</span>) that Headroom reduced to 36 tokens against 5,168 for CodeBuddy. Without it the cuts are 65% and 21%. CodeBuddy returned fewer tokens on 13 of 20 commands, Headroom on 2.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Stored conventions recalled from a fresh process: 12/12</figcaption>
+        <div class="chart-box" style="height: 200px"><canvas id="ch-recall" role="img" aria-label="Memory probe accuracy by question type"></canvas></div>
+        <p class="fig-cap">12 stored conventions, 24 questions about them and 8 with no stored answer. A recall cost a median 146 tokens and 42&nbsp;ms, against 9,689 tokens to re-derive the same conventions, about 66 times more. Headroom's memory was not measured: it needs an optional extra that was not installed.</p>
+      </figure>
+      <figure>
+        <figcaption class="fig-title">Lean default: 253 schema tokens, level with Headroom's 263</figcaption>
+        <div class="chart-box" style="height: 230px"><canvas id="ch-overhead" role="img" aria-label="Tool-schema tokens per request by profile"></canvas></div>
+        <p class="fig-cap">Fixed tool-schema overhead per request, as counted for 2.16.0 in the companion report; the 2.15.3 paper's counts (294 and 3,934) come from an earlier release and counting method. CodeBuddy also adds a 268-token rules block and a median 49-token prompt hint; Headroom adds neither. The prompt hook named the file the real fix changed in 8 of 23 tasks.</p>
+      </figure>
+    </div>
+
+    <div class="prose">
+      <p><strong>Pass rate.</strong> Pass rates were Headroom 61% (28/46); CodeBuddy and stock 57% (26/46 each). Exact McNemar gives p = 1.00 for CodeBuddy and p = 0.50 for Headroom against stock: neither difference is significant. Passing more fixes at a similar total gave Headroom the lowest cost per passing fix, $0.196 against $0.203 for CodeBuddy and $0.213 for stock.</p>
+      <p><strong>The reducer has not yet reached sessions.</strong> In the benchmarked 2.16.0 sessions the automatic reducer did not fire: it was used in 0 of 46 CodeBuddy runs, and neither tool's MCP server was called. The 79% corpus cut is a measured capability; the session-level token savings came from the other delivery paths. Confirming automatic routing end to end is frontier item 1.</p>
+      <p><strong>Context.</strong> Median peak context was 35.7k tokens for CodeBuddy and stock and 35.3k for Headroom. Headroom's paired reduction of 714 tokens (p<sub>Holm</sub> = 0.01) is the one secondary metric in either arm that is significant after correction.</p>
+    </div>
+
+    <section id="footprint" data-footprint aria-labelledby="h-footprint" class="stack">
+      <h3 id="h-footprint">Footprint: where Headroom leads most clearly</h3>
+      <div class="prose">
+        <p>Headroom runs as a local HTTP proxy and used a median 178 MB during sessions. CodeBuddy runs alongside PostgreSQL with pgvector, which holds its index and memory; its processes used a median 1,292 MB during sessions and 2,104 MB while indexing. The larger cost is per repository: the first index of Litestar took a median 494&nbsp;s and 8,736 MB of disk, where Headroom builds no index. That index is what makes ranked pointers and recall possible; its size and build time are now research targets.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl-wide" id="footprint-table">
+          <thead><tr><th>Measure</th><th class="n">CodeBuddy 2.16</th><th class="n">Headroom 0.44</th></tr></thead>
+          <tbody></tbody>
+          <tfoot><tr><td>Runs alongside</td><td class="n">PostgreSQL + pgvector</td><td class="n">local HTTP proxy</td></tr></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <p class="fn">Wall time: CodeBuddy sessions took a median 38.6&nbsp;s against 29.5&nbsp;s for stock (paired +12.3&nbsp;s, p<sub>Holm</sub> = 0.19) and Headroom 33.5&nbsp;s. Arms ran concurrently on one machine, so these times are indicative only.</p>
+  </div>
+</section>
+
+<!-- ================================================================ 9 ADOPTION -->
+<section id="adoption" aria-labelledby="h-adoption">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">9 &middot; Adoption</span>
+      <h2 id="h-adoption">4,966 npm downloads across two package names</h2>
+    </div>
+    <div class="prose">
+      <p>Through 17 November 2026: 2,583 for <span class="mono">@orquentra/codebuddy</span> and 2,383 for the deprecated <span class="mono">@ayushkumar320/codebuddy</span>. The legacy name grew from 371 downloads in June to 693 in October. The Orquentra name, first published in November, passed the legacy name's all-time total within its first month, a partial month of about two weeks, with 1,055 downloads in the last week of the snapshot and a peak of 537 on 15 November, the day the 2.15 releases shipped.</p>
+    </div>
+    <figure>
+      <figcaption class="fig-title">The new package name passed the legacy name's all-time total within its first month</figcaption>
+      <div class="legend" aria-hidden="true"><span><i style="background: var(--stock)"></i>@ayushkumar320/codebuddy (deprecated)</span><span><i style="background: var(--cb)"></i>@orquentra/codebuddy</span></div>
+      <div class="chart-box" style="height: 300px"><canvas id="ch-downloads" role="img" aria-label="Cumulative npm downloads at month end, stacked by package"></canvas></div>
+      <p class="fig-cap">Month-end running totals of the monthly npm counts; June starts at the legacy package's first publication, and November runs to the 17th.</p>
+    </figure>
+    <p class="fn">npm downloads API, retrieved 19 November 2026 with data through 17 November. The 2.15.3 paper reported 4,712 for the same period; npm backfills recent days, so a count read two days later is more complete.</p>
+  </div>
+</section>
+
+<!-- ================================================================ 10 DISCUSSION -->
+<section id="why" aria-labelledby="h-why">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">10 &middot; Discussion</span>
+      <h2 id="h-why">Why it matters</h2>
+    </div>
+    <div class="cards">
+      <div class="finding"><span class="eyebrow">Economics at fleet scale</span>
+        <p>Scaling each arm's mean cost per task-run to 1,000 similar tasks gives $115 for CodeBuddy, $119 for Headroom and $120 for stock. This is an extrapolation from 46 task-runs on one repository, not a measurement: the means favour CodeBuddy, the paired medians do not, and the difference is not significant. It shows the shape of the opportunity. Most of each session's tokens are context re-sent from turn to turn (for stock, cache reads were a median 157,892 of 170,127 tokens per task), so what enters early is paid for again on every later turn.</p></div>
+      <div class="finding"><span class="eyebrow">Memory is a core strength</span>
+        <p>Memory is where results are most consistent across both studies: parity with a full notes file at 27% lower cost per question, and 12/12 conventions recalled at 146 tokens against 9,689 to re-derive them. It is not uncontested: in 2.15.3 Headroom in token mode also answered 15/15 and was cheaper per question ($0.0199 against $0.0233), and Headroom's memory was not measured in 2.16.</p></div>
+      <div class="finding"><span class="eyebrow">Complementary, not only competing</span>
+        <p>Headroom compresses requests in the request path; CodeBuddy decides what enters the context from inside the agent loop. Each led on different measures here. Whether the two combine well was not measured, and it is a natural follow-up.</p></div>
+      <div class="finding"><span class="eyebrow">A team that measures, then ships</span>
+        <p>Two days passed between the 2.15.3 benchmark and 2.16.0, and the 2.16 benchmark then checked the result against a pinned competitor. Every gap is carried forward with its number. The record of measured claims, including the ones that went against us, is the strongest evidence we can offer.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ 11 FRONTIER -->
+<section id="frontier" aria-labelledby="h-frontier">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">11 &middot; The research frontier</span>
+      <h2 id="h-frontier">Every measured weakness is a numbered target</h2>
+    </div>
+    <div class="prose">
+      <p>Each target will be re-measured on the same harness before any gain is claimed. The first and third matter most for cost and adoption: if automatic reduction reaches sessions at anything like its corpus rate, the largest measured saving becomes a per-session one, and a smaller footprint removes the main practical reason to choose a lighter tool. The fourth is central to trust: a memory layer has to forget what its users have corrected.</p>
+    </div>
+    <div class="frontier" id="frontier-list"></div>
+  </div>
+</section>
+
+<!-- ================================================================ 12 CONCLUSION -->
+<section id="conclusion" aria-labelledby="h-conclusion">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">12 &middot; Conclusion</span>
+      <h2 id="h-conclusion">Strengths confirmed twice, gaps carried forward with numbers</h2>
+    </div>
+    <div class="prose">
+      <p>In five months CodeBuddy grew from a memory server into a local context and memory layer with 26 releases, 4,966 npm downloads and two controlled studies on a production codebase. The studies agree on its strengths: project memory that matches a full notes file at lower cost and recalls stored conventions across sessions (15/15; 12/12), context and command output cut by large margins at the call level (62&ndash;90%; 79% on the 2.16 corpus), the lowest cost per correct answer among the five 2.15.3 arms that ran both task types, and the lowest total bill of three arms in 2.16.</p>
+      <p>They also agree on what is not yet done: Headroom passed two more fixes and used far less memory, per-task cost differences are not significant at this sample size, and the reducer has yet to reach real sessions. Each of those is now a numbered target. The method that produced 2.16 two days after the gaps were measured is the same one that will test whether they close.</p>
+    </div>
+
+    <details class="stack">
+      <summary class="fig-title" style="cursor: pointer">Appendix: paired per-task metrics against stock (23 tasks, 2 runs each)</summary>
+      <div class="table-scroll">
+        <table class="tbl-xwide" id="paired">
+          <thead>
+            <tr><th>Metric</th><th class="n">Stock</th><th class="n">CB median</th><th class="n">CB &Delta;</th><th class="n">CB 95% CI</th><th class="n">p<sub>Holm</sub></th><th class="n">HR median</th><th class="n">HR &Delta;</th><th class="n">HR 95% CI</th><th class="n">p<sub>Holm</sub></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="fig-cap">&Delta; is the median of paired per-task differences against stock, with a 95% task-clustered bootstrap interval (10,000 resamples) and a Holm-corrected sign-flip permutation p-value; it need not equal the difference of the column medians.</p>
+    </details>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>Data availability.</strong> The 2.16 results, per-task table, output-reduction corpus and SHA-256 hashes of every per-session result file will be released with the companion technical report (Orquentra Labs Inc., <em>CodeBuddy 2.16 vs Headroom 0.44</em>, November 2026, forthcoming); the 2.15.3 results will be released with the earlier paper (A. Kumar, <em>CodeBuddy: A local context and memory layer for AI coding agents</em>, November 2026, forthcoming). Every number on this page is read from the paper's source-annotated data file.</p>
+    <p><strong>Competing interests.</strong> The authors are employed by Orquentra Labs Inc., which develops and distributes CodeBuddy. Both studies were designed by Orquentra Labs Inc. and executed by AI coding agents. Tasks, gold answers and tests were fixed before any run, the subject repository is public, the comparison tool's version was pinned, and results that favour the comparison tool are reported in full.</p>
+    <p><strong>AI assistance.</strong> The research loops, harnesses and sessions were run by AI coding agents under the authors' direction, and the text and figures were drafted by an AI agent from the recorded results. The draft is under review by the authors before submission.</p>
+    <p class="mono">Software: <a href="https://www.npmjs.com/package/@orquentra/codebuddy" target="_blank" rel="noopener">npmjs.com/package/@orquentra/codebuddy</a> &middot; Subject repository: <a href="https://github.com/litestar-org/litestar" target="_blank" rel="noopener">github.com/litestar-org/litestar</a></p>
+  </div>
+</footer>
+
+<script id="cb-data" type="application/json">{"downloads":{"retrieved":"2026-11-19","data_through":"2026-11-17","orquentra":2583,"legacy":2383,"total":4966,"orquentra_last_week":1055,"orquentra_peak_day":{"downloads":537,"date":"2026-11-15"},"previous_paper_total":4712,"previous_paper_split":{"legacy":2371,"orquentra":2341},"monthly":{"legacy":[{"month":"2026-06","downloads":371},{"month":"2026-07","downloads":110},{"month":"2026-08","downloads":241},{"month":"2026-09","downloads":465},{"month":"2026-10","downloads":693},{"month":"2026-11","downloads":503}],"orquentra":[{"month":"2026-11","downloads":2583}],"cumulative_total_note":"Running sum of legacy + orquentra monthly counts at each month end (November through 2026-11-17); computed, checked by check.py.","cumulative_total":[{"month":"2026-06","downloads":371},{"month":"2026-07","downloads":481},{"month":"2026-08","downloads":722},{"month":"2026-09","downloads":1187},{"month":"2026-10","downloads":1880},{"month":"2026-11","downloads":4966}]}},"bench216":{"setup":{"tasks":23,"sessions":138,"task_runs_per_setup":46,"runs_per_task":2,"model":"claude-sonnet-5-5","codebuddy_version":"2.16.0","headroom_version":"0.44.0","headroom_note":"base install, Kompress ML compressor disabled, memory not installed","bootstrap_resamples":10000},"headline":{"output_reduction_codebuddy_pct":79,"output_reduction_headroom_pct":55,"spend_vs_stock_codebuddy_pct":-4.4,"spend_vs_stock_headroom_pct":-0.8,"tokens_vs_stock_codebuddy_pct":-10.0,"tokens_vs_stock_headroom_pct":-7.9,"spend_codebuddy_vs_headroom_pct":-3.6,"facts_recalled":"12/12"},"scorecard":{"total_cost_usd":{"codebuddy":5.28,"headroom":5.48,"stock":5.53,"best":"codebuddy"},"cost_per_passing_fix_usd":{"codebuddy":0.203,"headroom":0.196,"stock":0.213,"best":"headroom"},"tokens_processed_m":{"codebuddy":14.86,"headroom":15.2,"stock":16.51,"best":"codebuddy"},"tool_output_tokens_20_commands_k":{"codebuddy":73,"headroom":153,"stock":341,"best":"codebuddy"},"median_peak_context_k":{"codebuddy":35.7,"headroom":35.3,"stock":35.7,"best":"headroom"},"fixes_passed":{"codebuddy":"26/46","headroom":"28/46","stock":"26/46","best":"headroom"}},"cost_total":{"codebuddy":5.28,"headroom":5.48,"stock":5.53},"cost_table":{"median_per_task_run_usd":{"codebuddy":0.0765,"headroom":0.0829,"stock":0.0733},"mean_per_task_run_usd":{"codebuddy":0.1148,"headroom":0.1192,"stock":0.1201},"total_46_task_runs_usd":{"codebuddy":5.28,"headroom":5.48,"stock":5.53},"cost_per_passing_fix_usd":{"codebuddy":0.203,"headroom":0.196,"stock":0.213},"at_1000_similar_tasks_usd":{"codebuddy":115,"headroom":119,"stock":120},"passing_fixes":{"codebuddy":"26/46","headroom":"28/46","stock":"26/46"},"pass_rate_pct":{"codebuddy":57,"headroom":61,"stock":57}},"pass_stats":{"mcnemar_p_vs_stock":{"codebuddy":1.0,"headroom":0.5},"cost_p_holm_codebuddy_vs_stock":0.69,"cost_p_holm_headroom_vs_stock":0.81,"cheapest_tasks":{"codebuddy":9,"headroom":5,"of":23}},"tokens":{"processed_m":{"codebuddy":14.86,"headroom":15.2,"stock":16.51},"vs_stock_pct":{"codebuddy":-10.0,"headroom":-7.9},"headroom_proxy_removed":{"removed":215237,"of":9855118,"pct":2.2}},"reduction":{"all_20_pct":{"codebuddy":79,"headroom":55},"all_20_factor":{"codebuddy":4.7,"headroom":2.2},"excluding_uv_lock_pct":{"codebuddy":65,"headroom":21},"excluding_uv_lock_factor":{"codebuddy":2.9,"headroom":1.3},"reducer_used_sessions":{"codebuddy":"0/46"},"mcp_server_called_sessions":{"codebuddy":0,"headroom":0},"faster_commands":{"codebuddy_fewer_tokens_on":13,"headroom_fewer_on":2,"of":20}},"corpus":[{"command":"python -m pytest tests/unit/test_kwargs -v -p no:cacheprov","raw":7981,"cb":1791,"hr":7981,"cb_err_kept_pct":56,"hr_err_kept_pct":100},{"command":"python -m pytest tests/unit/test_kwargs -q -p no:cacheprov","raw":47,"cb":47,"hr":47,"cb_err_kept_pct":0,"hr_err_kept_pct":100},{"command":"python -m pytest tests/unit/test_kwargs tests/unit/test_co","raw":3792,"cb":3792,"hr":3792,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"python -m pytest tests/unit/test_openapi --collect-only -q","raw":5554,"cb":1423,"hr":5554,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"grep -rn 'def get_' litestar/","raw":2580,"cb":1483,"hr":2232,"cb_err_kept_pct":75,"hr_err_kept_pct":0},{"command":"grep -rn ImproperlyConfiguredException litestar/","raw":4629,"cb":2080,"hr":3557,"cb_err_kept_pct":39,"hr_err_kept_pct":0},{"command":"find litestar -name '*.py'","raw":2607,"cb":622,"hr":1539,"cb_err_kept_pct":31,"hr_err_kept_pct":0},{"command":"git log -n 60 --stat","raw":21742,"cb":1621,"hr":21742,"cb_err_kept_pct":41,"hr_err_kept_pct":100},{"command":"git log --oneline -n 600","raw":13742,"cb":4337,"hr":13742,"cb_err_kept_pct":76,"hr_err_kept_pct":100},{"command":"git show c0b24227a","raw":650,"cb":650,"hr":599,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"cat litestar/app.py","raw":9046,"cb":1476,"hr":9046,"cb_err_kept_pct":22,"hr_err_kept_pct":100},{"command":"cat litestar/response/base.py","raw":3350,"cb":518,"hr":3350,"cb_err_kept_pct":17,"hr_err_kept_pct":100},{"command":"python openapi_dump.py","raw":27572,"cb":5179,"hr":14403,"cb_err_kept_pct":100,"hr_err_kept_pct":0},{"command":"uv pip list --python python","raw":2516,"cb":773,"hr":2516,"cb_err_kept_pct":30,"hr_err_kept_pct":100},{"command":"ls -R litestar","raw":1607,"cb":1607,"hr":1607,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"python -m ruff check litestar --select ALL --output-format","raw":75237,"cb":37830,"hr":53097,"cb_err_kept_pct":95,"hr_err_kept_pct":0},{"command":"python -c 'from litestar.contrib.does_not_exist import x'","raw":32,"cb":32,"hr":32,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"head -n 1500 uv.lock","raw":147290,"cb":5168,"hr":36,"cb_err_kept_pct":null,"hr_err_kept_pct":null},{"command":"python -m pytest tests/unit/test_datastructures -q -p no:c","raw":692,"cb":692,"hr":692,"cb_err_kept_pct":100,"hr_err_kept_pct":100},{"command":"grep -rn 'async def' litestar/","raw":9998,"cb":1759,"hr":7456,"cb_err_kept_pct":67,"hr_err_kept_pct":0}],"corpus_totals_k":{"raw":341,"cb":73,"hr":153},"memory":{"near_wording":{"hit":12,"of":12,"pct":100},"paraphrased":{"hit":10,"of":12,"pct":83},"no_stored_answer_returned_nothing":{"hit":6,"of":8,"pct":75},"facts_stored":12,"questions":24,"no_answer_questions":8,"recall_tokens":146,"recall_ms":42,"rederive_tokens":9689,"rederive_factor":66,"headroom_memory":"not measured: needs sentence-transformers extra and local embedding model, not installed"},"overhead_tokens":{"mcp_tool_schemas":{"codebuddy":253,"headroom":263},"rules_block":{"codebuddy":268,"headroom":0},"prompt_hook_hint_median":{"codebuddy":49,"headroom":0},"hook_named_real_fix_file":{"hit":8,"of":23},"profiles":{"core":{"tokens":1306,"tools":6},"full":{"tokens":3463,"tools":21},"lean_default":{"tokens":253}}},"footprint":{"headroom_session_mb":{"median":178,"peak":482},"codebuddy_session_mb":{"median":1292,"peak":3744},"codebuddy_indexing_mb":{"median":2104,"peak":2324},"install_size_mb":{"codebuddy":561,"headroom":594},"per_repo_index":{"codebuddy_disk_mb":8736,"codebuddy_median_build_s":494,"headroom":"none"}},"paired_metrics":[{"metric":"Cost per task (USD)","stock":"0.0733","cb":"0.0765","cb_delta":"+0.0040","cb_ci":"[-0.0038, +0.0105]","cb_p_holm":0.69,"hr":"0.0829","hr_delta":"+0.0016","hr_ci":"[+0.0004, +0.0042]","hr_p_holm":0.81},{"metric":"Billable tokens","stock":"12,560","cb":"13,562","cb_delta":"+1,106","cb_ci":"[+92, +1,879]","cb_p_holm":1.0,"hr":"14,185","hr_delta":"+627","hr_ci":"[+218, +1,003]","hr_p_holm":1.0},{"metric":"Total tokens processed","stock":"170,127","cb":"168,272","cb_delta":"-27,390","cb_ci":"[-30,568, +16,280]","cb_p_holm":1.0,"hr":"169,710","hr_delta":"-3,054","hr_ci":"[-6,748, +252]","hr_p_holm":1.0},{"metric":"Cache-read tokens","stock":"157,892","cb":"155,020","cb_delta":"-28,562","cb_ci":"[-30,694, +17,000]","cb_p_holm":1.0,"hr":"153,776","hr_delta":"-3,403","hr_ci":"[-6,890, -1,447]","hr_p_holm":1.0},{"metric":"Cache-write tokens","stock":"11,368","cb":"12,012","cb_delta":"+928","cb_ci":"[+76, +1,586]","cb_p_holm":1.0,"hr":"12,256","hr_delta":"+556","hr_ci":"[+102, +878]","hr_p_holm":1.0},{"metric":"Output tokens","stock":"1,409","cb":"1,440","cb_delta":"+34","cb_ci":"[-89, +143]","cb_p_holm":1.0,"hr":"1,559","hr_delta":"+46","hr_ci":"[-46, +139]","hr_p_holm":1.0},{"metric":"Peak context window (tokens)","stock":"35,672","cb":"35,720","cb_delta":"+722","cb_ci":"[+242, +1,271]","cb_p_holm":1.0,"hr":"35,264","hr_delta":"-714","hr_ci":"[-950, -416]","hr_p_holm":0.01},{"metric":"Turns","stock":"7.0","cb":"6.5","cb_delta":"+0.0","cb_ci":"[-1.0, +1.0]","cb_p_holm":1.0,"hr":"7.0","hr_delta":"+0.0","hr_ci":"[+0.0, +1.0]","hr_p_holm":1.0},{"metric":"Tool calls","stock":"6.0","cb":"5.5","cb_delta":"+0.0","cb_ci":"[-1.0, +1.0]","cb_p_holm":1.0,"hr":"6.0","hr_delta":"+0.0","hr_ci":"[+0.0, +1.0]","hr_p_holm":1.0},{"metric":"Exploration calls (Bash/Read/Grep/Glob)","stock":"4.5","cb":"4.0","cb_delta":"+0.0","cb_ci":"[-1.0, +1.0]","cb_p_holm":1.0,"hr":"5.0","hr_delta":"+0.0","hr_ci":"[+0.0, +1.0]","hr_p_holm":1.0},{"metric":"Tool-result characters","stock":"7,116","cb":"6,949","cb_delta":"+598","cb_ci":"[-922, +1,923]","cb_p_holm":1.0,"hr":"8,582","hr_delta":"+170","hr_ci":"[-158, +421]","hr_p_holm":1.0},{"metric":"Wall time (s)","stock":"29.5","cb":"38.6","cb_delta":"+12.3","cb_ci":"[+8.4, +23.2]","cb_p_holm":0.19,"hr":"33.5","hr_delta":"+5.0","hr_ci":"[+0.5, +8.0]","hr_p_holm":1.0}],"paired_metrics_note":"Deltas are medians of paired differences, so they need not equal the difference of the column medians (as printed in the report).","threats":["Headroom ran without its Kompress ML compressor and memory; with them it may save more tokens","2 runs per task; same-task stock cost ranged $0.048 to $0.509","Three setups ran concurrently on one machine; wall-clock times indicative only","One CodeBuddy session (PR #4318 run 1) rerun after receiving a resume checkpoint from a pilot session","Two CodeBuddy run-2 sessions (PR #4687, #4690) started twice at once; four results discarded, both rerun","One Python repository"]},"study2153":{"version":"2.15.3","repo":"Litestar","indexed_files":1366,"sessions":117,"headline":{"memory_correct":"15/15","memory_control_correct":"0/15","notes_file_notes":220,"memory_cost_vs_notes_file_pct":-27,"context_pack_smaller_pct":"62-90","command_output_reduction_pct":92,"oversized_first_read_reduction_pct":93,"tool_schema_tokens":294,"tool_schema_tokens_before":3934,"recall_top1":"20/20","recall_facts":[20,220],"recall_p95_ms_max":25,"localisation_top1_exact_pct":83,"files_returned":"about 3","files_baseline":"about 140","search_input_tokens_pct":-10,"search_turns_pct":-8,"search_cost_pct":18,"search_cost_ci_pct":[5,35],"swe_bench_solved":{"codebuddy":"13/20","stock":"14/20"},"swe_bench_cost_pct":17.7,"swe_bench_cost_ci_pct":[-1.7,36.9],"swe_bench_cost_usd":{"codebuddy":2.16,"stock":1.83},"downloads_then":4712},"cmp_all_51_sessions":[{"arm":"CodeBuddy","correct":"49/51","total_cost_usd":2.49,"usd_per_correct":0.0507,"mean_input_tokens":104628},{"arm":"Headroom (token mode)","correct":"51/51","total_cost_usd":2.91,"usd_per_correct":0.057,"mean_input_tokens":124025},{"arm":"Serena","correct":"44/51","total_cost_usd":2.72,"usd_per_correct":0.0619,"mean_input_tokens":121756},{"arm":"No tool","correct":"33/51","total_cost_usd":2.74,"usd_per_correct":0.0831,"mean_input_tokens":130266},{"arm":"Headroom (cache mode)","correct":"36/51","total_cost_usd":3.46,"usd_per_correct":0.0961,"mean_input_tokens":155301}],"cmp_memory_15_sessions":[{"arm":"Headroom (token mode)","correct":"15/15","usd_per_question":0.0199,"cost_vs_no_tool":"-56% [-63, -46]"},{"arm":"CodeBuddy","correct":"15/15","usd_per_question":0.0233,"cost_vs_no_tool":"-48% [-55, -39]"},{"arm":"Notes file (CLAUDE.md)","correct":"15/15","usd_per_question":0.0279,"cost_vs_no_tool":"-38% [-54, -19]"},{"arm":"Serena","correct":"10/15","usd_per_question":0.0454,"cost_vs_no_tool":"+1% [-17, +27]"},{"arm":"Headroom (cache mode)","correct":"3/15","usd_per_question":0.0609,"cost_vs_no_tool":"+35% [+17, +56]"},{"arm":"No tool","correct":"0/15","usd_per_question":0.0451,"cost_vs_no_tool":null}],"cmp_localisation_36_sessions":[{"arm":"codebase-memory-mcp","correct":"35/36","usd_per_task":0.057,"cost_vs_no_tool":"-1% [-5, +5]"},{"arm":"CodeBuddy","correct":"34/36","usd_per_task":0.0593,"cost_vs_no_tool":"+3% [-9, +17]"},{"arm":"context-mode","correct":"34/36","usd_per_task":0.0548,"cost_vs_no_tool":"-5% [-11, +2]"},{"arm":"RTK","correct":"34/36","usd_per_task":0.0565,"cost_vs_no_tool":"-1% [-8, +4]"},{"arm":"Serena","correct":"34/36","usd_per_task":0.0567,"cost_vs_no_tool":"-1% [-7, +4]"},{"arm":"No tool","correct":"33/36","usd_per_task":0.0574,"cost_vs_no_tool":null},{"arm":"Headroom (token mode)","correct":"36/36","usd_per_task":0.0724,"cost_vs_no_tool":"+26% [+21, +33]"},{"arm":"Headroom (cache mode)","correct":"33/36","usd_per_task":0.0707,"cost_vs_no_tool":"+23% [+17, +30]"}],"swe_bench_pilot":[{"arm":"No tool","solved":"14/20","total_cost_usd":1.83,"usd_per_solved":0.131},{"arm":"CodeBuddy","solved":"13/20","total_cost_usd":2.16,"usd_per_solved":0.166}],"context_cuts":{"rows":[{"label":"Pack vs. top-3 keyword files","without":14562,"with":1510,"pct":90},{"label":"Pack vs. the right files, whole","without":3925,"with":1510,"pct":62},{"label":"Repeat pack, same session","without":1695,"with":518,"pct":69},{"label":"Repeat bootstrap, same session","without":811,"with":203,"pct":75}]},"version_retrieval":{"rows":[{"version":"2.14.0","top1_pct":70,"top3_pct":77},{"version":"2.15.1","top1_pct":73,"top3_pct":83},{"version":"2.15.3","top1_pct":83,"top3_pct":90}]}},"versions":{"rows":[{"version":"0.1.x","date":null,"theme":"Initial memory server: remember, recall, share and forget over a local store."},{"version":"2.0.0","date":null,"theme":"Automatic context engine: background indexing, automatic memory extraction with a review queue, client workflow templates."},{"version":"2.1.0","date":"2026-08-26","theme":"First tagged line; hardened concurrency, security boundaries and payload bounds."},{"version":"2.1.1","date":"2026-09-12","theme":"Release metadata and documentation follow-up."},{"version":"2.2.0","date":"2026-10-24","theme":"MIT licence; dependency security updates; stored memory is scanned and redacted for sensitive content."},{"version":"2.2.1","date":"2026-10-24","theme":"Server starts without a database configured and degrades with a clear message."},{"version":"2.2.2","date":"2026-10-24","theme":"Server exits cleanly when its client quits."},{"version":"2.3.0","date":"2026-11-01","theme":"Lean hook mode: ranked file pointers injected with no MCP server or rules block."},{"version":"2.4.0","date":"2026-11-02","theme":"Estimated token-savings figures removed; package published as @orquentra/codebuddy."},{"version":"2.5.0","date":"2026-11-04","theme":"Live local dashboard showing what was recalled and delivered per prompt."},{"version":"2.6.0","date":"2026-11-04","theme":"Fact-relevance evaluation with hard negatives; stricter relevance floor for paraphrased recall."},{"version":"2.6.1","date":"2026-11-04","theme":"Security hardening: untrusted project config ignored; future-dated rules not shown."},{"version":"2.6.2","date":"2026-11-04","theme":"MCP server connects and explains itself when started outside a project."},{"version":"2.7.0","date":"2026-11-05","theme":"Python support: symbols, imports, test conventions and reStructuredText docs."},{"version":"2.8.0","date":"2026-11-09","theme":"Opt-out anonymous usage telemetry (names, timings, counts; never prompts or code)."},{"version":"2.9.0","date":"2026-11-09","theme":"Setup-only users counted; install registry and retention cohorts for the collector."},{"version":"2.9.1","date":"2026-11-11","theme":"npm keywords updated so search finds the package."},{"version":"2.10.0","date":"2026-11-14","theme":"Lean default tool profile cut fixed per-session overhead after the 2.9 cost finding."},{"version":"2.11.0","date":"2026-11-14","theme":"Context continuity: capture independent of injection; remembered facts survive restart."},{"version":"2.12.0","date":"2026-11-14","theme":"Capture toggle for OpenCode and Hermes; checkpoints keep goals, constraints and edited paths."},{"version":"2.13.0","date":"2026-11-14","theme":"Native Codex hooks and OpenCode/Hermes checkpoint bridges."},{"version":"2.14.0","date":"2026-11-14","theme":"Prompt hook stays silent when there is no evidence; pasted issue-form scaffolding stripped."},{"version":"2.15.0","date":"2026-11-15","theme":"Optional local model for file descriptions and semantic retrieval."},{"version":"2.15.1","date":"2026-11-15","theme":"One-command setup."},{"version":"2.15.2","date":"2026-11-15","theme":"Fixed semantic retrieval silently falling back to keywords; stale indexes repaired instead of dropped."},{"version":"2.15.3","date":"2026-11-15","theme":"Fixes for misses found in calibration; setup without questions; first 2.15 benchmark numbers."},{"version":"2.16.0","date":"2026-11-17","theme":"Hooks-first setup, background indexing, session-start delivery of standing rules, dated and sourced memories, automatic output reduction for supported commands; responds to the Headroom comparison findings."}]},"program":{"commits":459,"first_commit":"2026-06-18","latest_release":{"version":"2.16.0","date":"2026-11-17"},"releases_2_0_to_2_16":26,"releases_1_to_17_nov":20,"research_loops":10,"loops_from":"2026-11-13","loops_to":"2026-11-18","ab29":{"tasks":23,"median_cost_vs_stock_pct":22,"codebuddy_tool_calls":0,"pass_rate":"unchanged"}},"frontier":{"items":[{"gap":"Output reduction rarely reached the agent in real sessions","measured":"0/46 benchmark sessions routed output through reduction despite 79% corpus reduction","next":"Confirm the 2.16 automatic routing fires in end-to-end agent runs and extend coverage to compound commands, so corpus-level savings show up in session cost."},{"gap":"Pass-rate parity","measured":"26/46 fixes passed, equal to stock; Headroom passed 28/46 (McNemar p = 1.00 and 0.50 vs stock, not significant).","next":"Measure with larger task counts and more runs per task to resolve differences of this size."},{"gap":"RAM, setup footprint and cold start","measured":"Median 1,292 MB in session vs 178 MB for Headroom; first index took a median 494 s and 8,736 MB on disk.","next":"Shrink session memory and the index, and make the first session usable before indexing completes."},{"gap":"Memory-correction lifecycle","measured":"Approving a memory correction does not yet retire the old fact, so both can be recalled.","next":"Make an approved correction replace the fact it corrects."},{"gap":"Generality beyond one Python repository","measured":"All benchmark figures come from one Python repository (Litestar); the SWE-bench pilot is 20 tasks.","next":"Repeat the benchmark on other repositories and languages."},{"gap":"Cost per accepted patch","measured":"SWE-bench pilot: 13/20 solved vs 14/20 for stock, at +18% cost (17.7%, CI -1.7% to +36.9%).","next":"Lower session cost on one-off bug fixes and re-measure on the same pilot."}]}}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("cb-data").textContent);
+  var B = DATA.bench216, S = DATA.study2153;
+  var root = document.documentElement;
+  var css = function (n) { return getComputedStyle(root).getPropertyValue(n).trim(); };
+  var fmt = function (n, d) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+
+  /* ---------------- tables from DATA */
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var MARK = { "2.4.0": 1, "2.10.0": 1, "2.15.3": 1, "2.16.0": 1 };
+  document.getElementById("versions-body").innerHTML = DATA.versions.rows.map(function (r) {
+    var d = r.date ? (+r.date.slice(8, 10)) + " " + MONTHS[+r.date.slice(5, 7) - 1] : "&ndash;";
+    return '<tr' + (MARK[r.version] ? ' class="mark"' : "") + '><td class="mono">' + esc(r.version) + '</td><td class="mono" style="white-space:nowrap">' + d + "</td><td>" + esc(r.theme) + "</td></tr>";
+  }).join("");
+
+  var sc = B.scorecard;
+  var scRows = [
+    ["Total cost, 46 task-runs (USD)", sc.total_cost_usd, function (v) { return fmt(v, 2); }],
+    ["Cost per passing fix (USD)", sc.cost_per_passing_fix_usd, function (v) { return fmt(v, 3); }],
+    ["Tokens processed (millions)", sc.tokens_processed_m, function (v) { return fmt(v, 2); }],
+    ["Tool output, 20-command corpus (tokens)", sc.tool_output_tokens_20_commands_k, function (v) { return v + "k"; }],
+    ["Median peak context (tokens)", sc.median_peak_context_k, function (v) { return fmt(v, 1) + "k"; }],
+    ["Fixes passed", sc.fixes_passed, function (v) { return v; }]
+  ];
+  var cell = function (row, arm) {
+    var cls = "n" + (row[1].best === arm ? " best" + (arm === "headroom" ? " hrb" : "") : "");
+    return '<td class="' + cls + '">' + row[2](row[1][arm]) + "</td>";
+  };
+  var fp = B.footprint;
+  document.querySelector("#scorecard tbody").innerHTML = scRows.map(function (r) {
+    return "<tr><td>" + r[0] + "</td>" + cell(r, "codebuddy") + cell(r, "headroom") + cell(r, "stock") + "</tr>";
+  }).join("") + '<tr><td>Median session RAM (MB)</td><td class="n">' + fmt(fp.codebuddy_session_mb.median) + '</td><td class="n best hrb">' + fmt(fp.headroom_session_mb.median) + '</td><td class="n">&ndash;</td></tr>';
+
+  document.querySelector("#footprint-table tbody").innerHTML = [
+    ["Session RAM, median / peak (MB)", fmt(fp.codebuddy_session_mb.median) + " / " + fmt(fp.codebuddy_session_mb.peak), fmt(fp.headroom_session_mb.median) + " / " + fmt(fp.headroom_session_mb.peak), "hr"],
+    ["Indexing RAM, median / peak (MB)", fmt(fp.codebuddy_indexing_mb.median) + " / " + fmt(fp.codebuddy_indexing_mb.peak), "none", "hr"],
+    ["Install size (MB)", fmt(fp.install_size_mb.codebuddy), fmt(fp.install_size_mb.headroom), "cb"],
+    ["Per-repository index: disk / median build", fmt(fp.per_repo_index.codebuddy_disk_mb) + " MB / " + fp.per_repo_index.codebuddy_median_build_s + " s", fp.per_repo_index.headroom, "hr"]
+  ].map(function (r) {
+    return "<tr><td>" + r[0] + '</td><td class="n' + (r[3] === "cb" ? " best" : "") + '">' + r[1] + '</td><td class="n' + (r[3] === "hr" ? " best hrb" : "") + '">' + esc(r[2]) + "</td></tr>";
+  }).join("");
+
+  var neg = function (s) { return esc(s).replace(/-/g, "&minus;"); };
+  document.querySelector("#paired tbody").innerHTML = B.paired_metrics.map(function (m) {
+    var p = function (v) { return '<td class="n"' + (v < 0.05 ? ' style="font-weight:600;color:var(--ink)"' : "") + ">" + fmt(v, 2) + "</td>"; };
+    return "<tr><td>" + esc(m.metric) + '</td><td class="n">' + m.stock + '</td><td class="n">' + m.cb + '</td><td class="n">' + neg(m.cb_delta) + '</td><td class="n">' + neg(m.cb_ci) + "</td>" + p(m.cb_p_holm) +
+      '<td class="n">' + m.hr + '</td><td class="n">' + neg(m.hr_delta) + '</td><td class="n">' + neg(m.hr_ci) + "</td>" + p(m.hr_p_holm) + "</tr>";
+  }).join("");
+
+  document.getElementById("frontier-list").innerHTML = DATA.frontier.items.map(function (g) {
+    return '<article class="gap"><h3>' + esc(g.gap) + "</h3><dl><dt>Measured</dt><dd>" + esc(g.measured) + "</dd><dt>Next</dt><dd>" + esc(g.next) + "</dd></dl></article>";
+  }).join("");
+
+  /* ---------------- charts (Chart.js), all values from DATA */
+  var charts = [];
+  var labelPlugin = {
+    id: "directLabels",
+    afterDatasetsDraw: function (c) {
+      var ctx = c.ctx, horiz = c.options.indexAxis === "y";
+      ctx.save();
+      ctx.font = "500 12px " + css("--font-mono");
+      ctx.fillStyle = css("--ink");
+      c.data.datasets.forEach(function (ds, i) {
+        if (!ds.txt || c.getDatasetMeta(i).hidden) return;
+        c.getDatasetMeta(i).data.forEach(function (b, j) {
+          if (!ds.txt[j]) return;
+          if (horiz) { ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(ds.txt[j], b.x + 8, b.y); }
+          else { ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText(ds.txt[j], b.x, b.y - 6); }
+        });
+      });
+      ctx.restore();
+    }
+  };
+  var baselinePlugin = {
+    id: "baseline",
+    afterDatasetsDraw: function (c, _a, o) {
+      if (o.value == null) return;
+      var x = c.scales.x.getPixelForValue(o.value), a = c.chartArea, ctx = c.ctx;
+      ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, a.top); ctx.lineTo(x, a.bottom); ctx.stroke(); ctx.restore();
+    }
+  };
+
+  var measure = document.createElement("canvas").getContext("2d");
+  // two-line axis labels past n characters (fewer on phones), so long category names never crop on narrow charts
+  function wrap(s, n) {
+    if (Array.isArray(s) || s.length <= n) return s;
+    var mid = s.length / 2, best = -1;
+    for (var i = 0; i < s.length; i++) if (s[i] === " " && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+    return best < 0 ? s : [s.slice(0, best), s.slice(best + 1)];
+  }
+  function hbar(id, rows, o) {
+    // reserve exactly the room the widest direct label needs, so labels never clip
+    measure.font = "500 12px " + css("--font-mono");
+    var narrow = document.getElementById(id).parentNode.clientWidth < 440;
+    var room = Math.max.apply(null, rows.map(function (r) { return measure.measureText(r.t).width; })) + 14;
+    return new Chart(document.getElementById(id), {
+      type: "bar",
+      data: { labels: rows.map(function (r) { return wrap(r.label, narrow ? 10 : 18); }), datasets: [{
+        data: rows.map(function (r) { return r.v; }),
+        backgroundColor: rows.map(function (r) { return css(r.c); }),
+        txt: rows.map(function (r) { return r.t; }),
+        borderRadius: 4, borderSkipped: "start", barPercentage: 0.72, categoryPercentage: 0.9, maxBarThickness: 30
+      }] },
+      options: {
+        indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { right: room } },
+        scales: {
+          x: { beginAtZero: true, max: o.max, grid: { color: css("--rule"), drawTicks: false }, border: { display: false },
+               ticks: { color: css("--muted"), font: { family: css("--font-mono"), size: 11 }, maxTicksLimit: narrow ? 3 : 5, padding: 6, callback: o.tick },
+               title: { display: true, text: o.axis, color: css("--muted"), font: { family: css("--font-body"), size: 12 } } },
+          y: { grid: { display: false }, border: { color: css("--rule") }, ticks: { color: css("--ink-2"), font: { family: css("--font-body"), size: 12 } } }
+        },
+        plugins: {
+          legend: { display: false },
+          baseline: { value: o.baseline },
+          tooltip: { callbacks: { label: function (it) { return " " + (rows[it.dataIndex].tip || rows[it.dataIndex].t); } },
+                     titleFont: { family: css("--font-body") }, bodyFont: { family: css("--font-mono") } }
+        }
+      },
+      plugins: [labelPlugin, baselinePlugin]
+    });
+  }
+
+  function drawCharts() {
+    charts.forEach(function (c) { c.destroy(); });
+    charts = [];
+    Chart.defaults.color = css("--ink-2");
+    var h = B.headline, ct = B.cost_total, tok = B.scorecard.tool_output_tokens_20_commands_k, red = B.reduction.all_20_pct;
+    var pct = function (v) { return (v < 0 ? "−" : "+") + fmt(Math.abs(v), 1) + "%"; };
+
+    charts.push(hbar("ch-spend", [
+      { label: "Stock Claude Code", v: ct.stock, c: "--stock", t: "$" + fmt(ct.stock, 2) + " (baseline)" },
+      { label: "Headroom 0.44", v: ct.headroom, c: "--hr", t: "$" + fmt(ct.headroom, 2) + " (" + pct(h.spend_vs_stock_headroom_pct) + ")" },
+      { label: "CodeBuddy 2.16", v: ct.codebuddy, c: "--cb", t: "$" + fmt(ct.codebuddy, 2) + " (" + pct(h.spend_vs_stock_codebuddy_pct) + ")" }
+    ], { axis: "Total spend over 46 task-runs (USD)", baseline: ct.stock, tick: function (v) { return "$" + v; } }));
+
+    charts.push(hbar("ch-output", [
+      { label: "No reduction (stock)", v: tok.stock, c: "--stock", t: tok.stock + "k" },
+      { label: "Headroom 0.44", v: tok.headroom, c: "--hr", t: tok.headroom + "k (" + red.headroom + "% less)" },
+      { label: "CodeBuddy 2.16", v: tok.codebuddy, c: "--cb", t: tok.codebuddy + "k (" + red.codebuddy + "% less)" }
+    ], { axis: "Tool-output tokens returned to the agent (thousands)", tick: function (v) { return v + "k"; } }));
+
+    var mem = B.memory;
+    charts.push(hbar("ch-recall", [
+      { label: "Asked in near wording", v: mem.near_wording.pct, c: "--cb", t: mem.near_wording.hit + "/" + mem.near_wording.of },
+      { label: "Asked in a paraphrase", v: mem.paraphrased.pct, c: "--cb", t: mem.paraphrased.hit + "/" + mem.paraphrased.of },
+      { label: ["No stored answer:", "correctly returned nothing"], v: mem.no_stored_answer_returned_nothing.pct, c: "--cb", t: mem.no_stored_answer_returned_nothing.hit + "/" + mem.no_stored_answer_returned_nothing.of }
+    ], { axis: "Correct (%)", max: 100, tick: function (v) { return v + "%"; } }));
+
+    var pr = B.overhead_tokens.profiles;
+    charts.push(hbar("ch-overhead", [
+      { label: "CodeBuddy full (" + pr.full.tools + " tools)", v: pr.full.tokens, c: "--cb-soft", t: fmt(pr.full.tokens) },
+      { label: "CodeBuddy core (" + pr.core.tools + " tools)", v: pr.core.tokens, c: "--cb-soft", t: fmt(pr.core.tokens) },
+      { label: "CodeBuddy lean default", v: pr.lean_default.tokens, c: "--cb", t: fmt(pr.lean_default.tokens) },
+      { label: "Headroom 0.44", v: B.overhead_tokens.mcp_tool_schemas.headroom, c: "--hr", t: fmt(B.overhead_tokens.mcp_tool_schemas.headroom) }
+    ], { axis: "Tool-schema tokens sent with every request", tick: function (v) { return fmt(v); } }));
+
+    charts.push(hbar("ch-ctx", S.context_cuts.rows.map(function (r) {
+      return { label: r.label, v: r.pct, c: "--cb", t: r.pct + "% (" + fmt(r.without) + " → " + fmt(r.with) + ")" };
+    }), { axis: "Tokens saved per call (%)", max: 100, tick: function (v) { return v + "%"; } }));
+
+    var armColor = function (a) { return a === "CodeBuddy" ? "--cb" : a === "No tool" ? "--stock" : "--hr"; };
+    charts.push(hbar("ch-five", S.cmp_all_51_sessions.map(function (r) {
+      return { label: r.arm === "CodeBuddy" ? "CodeBuddy 2.15.3" : r.arm, v: r.usd_per_correct, c: armColor(r.arm),
+               t: "$" + fmt(r.usd_per_correct, 4) + "  (" + r.correct + ")" };
+    }), { axis: "Cost per correct answer, both task types (USD)", tick: function (v) { return "$" + fmt(v, 2); } }));
+
+    var vr = S.version_retrieval.rows;
+    charts.push(hbar("ch-ver", vr.map(function (r, i) {
+      return { label: r.version, v: r.top1_pct, c: i === vr.length - 1 ? "--cb" : "--cb-soft", t: r.top1_pct + "%", tip: "top-1 " + r.top1_pct + "%, top-3 " + r.top3_pct + "%" };
+    }), { axis: "Exact-wording tasks with a correct file ranked first (%)", max: 100, tick: function (v) { return v + "%"; } }));
+
+    /* cumulative downloads, stacked by package */
+    var m = DATA.downloads.monthly, months = m.cumulative_total.map(function (r) { return r.month; });
+    var running = function (list) {
+      var by = {}, run = 0; list.forEach(function (r) { by[r.month] = r.downloads; });
+      return months.map(function (mm) { run += by[mm] || 0; return run; });
+    };
+    var leg = running(m.legacy), orq = running(m.orquentra);
+    charts.push(new Chart(document.getElementById("ch-downloads"), {
+      type: "bar",
+      data: {
+        labels: months.map(function (mm, i) { var n = MONTHS[+mm.slice(5, 7) - 1]; return i === months.length - 1 ? [n, "(to 17th)"] : n; }),
+        datasets: [
+          { label: "@ayushkumar320/codebuddy", data: leg, backgroundColor: css("--stock"), borderRadius: 0, borderSkipped: false, maxBarThickness: 56 },
+          { label: "@orquentra/codebuddy", data: orq, backgroundColor: css("--cb"), borderRadius: 4, borderSkipped: "start", maxBarThickness: 56,
+            txt: m.cumulative_total.map(function (r) { return fmt(r.downloads); }) }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        layout: { padding: { top: 22 } },
+        scales: {
+          x: { stacked: true, grid: { display: false }, border: { color: css("--rule") }, ticks: { color: css("--ink-2"), font: { family: css("--font-mono"), size: 11 } } },
+          y: { stacked: true, beginAtZero: true, max: 6000, grid: { color: css("--rule"), drawTicks: false }, border: { display: false },
+               ticks: { color: css("--muted"), font: { family: css("--font-mono"), size: 11 }, stepSize: 1000, padding: 6, callback: function (v) { return fmt(v); } },
+               title: { display: true, text: "Cumulative npm downloads at month end", color: css("--muted"), font: { family: css("--font-body"), size: 12 } } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: "index", intersect: false, filter: function (it) { return it.raw > 0; },
+                     callbacks: { label: function (it) { return " " + it.dataset.label + ": " + fmt(it.raw); } },
+                     bodyFont: { family: css("--font-mono") } }
+        }
+      },
+      plugins: [labelPlugin]
+    }));
+  }
+
+  /* ---------------- diagrams (mermaid), theme from prefers-color-scheme / data-theme */
+  var pres = Array.prototype.slice.call(document.querySelectorAll("pre.mermaid"));
+  pres.forEach(function (p) { p._src = p.textContent; });
+  var font = '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif';
+  var LIGHT = { background: "#FFFFFF", primaryColor: "#E5E7EB", primaryTextColor: "#111827", primaryBorderColor: "#9AA3AF",
+    secondaryColor: "#F3F4F6", tertiaryColor: "#F7F8FA", lineColor: "#6B7280", textColor: "#1F2430", titleColor: "#1F2430",
+    clusterBkg: "#F7F8FA", clusterBorder: "#C9CED6", edgeLabelBackground: "#FFFFFF",
+    actorBkg: "#E5E7EB", actorBorder: "#9AA3AF", actorTextColor: "#111827", actorLineColor: "#9AA3AF",
+    signalColor: "#4B5563", signalTextColor: "#1F2430", noteBkgColor: "#FBE3D3", noteBorderColor: "#E8743B", noteTextColor: "#1a1a1a",
+    labelBoxBkgColor: "#E5E7EB", labelTextColor: "#111827", stateLabelColor: "#111827", transitionColor: "#6B7280", transitionLabelColor: "#1F2430",
+    labelBackgroundColor: "#FFFFFF", fontFamily: font, fontSize: "15px" };
+  var DARK = { darkMode: true, background: "#151920", primaryColor: "#E5E7EB", primaryTextColor: "#111827", primaryBorderColor: "#9AA3AF",
+    secondaryColor: "#2A303A", tertiaryColor: "#1C2129", lineColor: "#A3ABB8", textColor: "#E8EBF0", titleColor: "#E8EBF0",
+    clusterBkg: "#1C2129", clusterBorder: "#3A4250", edgeLabelBackground: "#151920",
+    actorBkg: "#E5E7EB", actorBorder: "#9AA3AF", actorTextColor: "#111827", actorLineColor: "#6B7280",
+    signalColor: "#C9CED6", signalTextColor: "#E8EBF0", noteBkgColor: "#FBE3D3", noteBorderColor: "#E8743B", noteTextColor: "#1a1a1a",
+    labelBoxBkgColor: "#E5E7EB", labelTextColor: "#111827", stateLabelColor: "#111827", transitionColor: "#A3ABB8", transitionLabelColor: "#E8EBF0",
+    labelBackgroundColor: "#151920", fontFamily: font, fontSize: "15px" };
+
+  var renderSeq = 0;
+  function drawDiagrams() {
+    if (!window.mermaid) { console.error("mermaid failed to load; diagrams not rendered"); return; }
+    var dark = isDark(), seq = ++renderSeq;
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: dark ? DARK : LIGHT,
+      flowchart: { htmlLabels: true, useMaxWidth: true, nodeSpacing: 36, rankSpacing: 44 }, sequence: { useMaxWidth: true, actorMargin: 40 }, state: { useMaxWidth: true } });
+    pres.forEach(function (p) {
+      p.removeAttribute("data-processed");
+      // the architecture subgraph pins a near-white fill; swap it for a dark wash so its light title stays legible
+      p.textContent = dark ? p._src.replace(/fill:#FFF7F2/gi, "fill:#24180F") : p._src;
+    });
+    mermaid.run({ nodes: pres }).then(function () {
+      if (seq !== renderSeq) return;
+      pres.forEach(function (p) {
+        var svg = p.querySelector("svg"), w = svg && parseFloat(svg.style.maxWidth);
+        if (w) svg.style.minWidth = Math.min(w, 520) + "px"; // keep text readable on phones; the plate scrolls
+      });
+    }).catch(function (e) { console.error("mermaid render failed:", e); });
+  }
+
+  /* ---------------- nav: mark the section in view */
+  var links = Array.prototype.slice.call(document.querySelectorAll(".nav a"));
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        links.forEach(function (a) { a.setAttribute("aria-current", a.getAttribute("href") === "#" + e.target.id ? "true" : "false"); });
+        var cur = links.filter(function (a) { return a.getAttribute("aria-current") === "true"; })[0];
+        if (cur) cur.parentNode.parentNode.scrollLeft = cur.offsetLeft - 16;
+      });
+    }, { rootMargin: "-45% 0px -50% 0px" });
+    document.querySelectorAll("main > section[id]").forEach(function (s) { io.observe(s); });
+  }
+
+  function drawAll() { if (window.Chart) drawCharts(); else console.error("Chart.js failed to load; charts not drawn"); drawDiagrams(); }
+  var start = function () { drawAll(); };
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(start, start); else start();
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+  new MutationObserver(drawAll).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
